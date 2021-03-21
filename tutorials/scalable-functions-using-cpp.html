@@ -394,7 +394,11 @@ summary {
 <div id="example-1-rescaling-function" class="section level3">
 <h3>Example 1: Rescaling function</h3>
 <p>Rescaling is a common technique used prior to statistical and machine learning modelling as it puts all the variables on the same playing field. This means techniques that could be biased by large variances, such as the gradient descent algorithm used in neural networks, can account for this beforehand. Typically (but not always), people would rescale into three potential ranges:</p>
-<p>1.0 to 1 2. -1 to +1 3. Normalised (accounts for mean and standard deviation)</p>
+<ul>
+<li>0 to 1</li>
+<li>-1 to +1</li>
+<li>Normalised (accounts for mean and standard deviation)</li>
+</ul>
 <p>We are going to take a look at the first today, though the code presented can extend to any of them as we will discuss.</p>
 <div id="the-simple-readily-available-r-function" class="section level4">
 <h4>The simple, readily available R function</h4>
@@ -472,12 +476,12 @@ x &lt;- seq(from = 1, to = 1000, by = 1)
 
 microbenchmark::microbenchmark(cpp_scaler(x), scales::rescale(x, to = c(0,1)), times = 1000)</code></pre>
 <pre><code>## Unit: microseconds
-##                              expr    min     lq     mean  median      uq
-##                     cpp_scaler(x)  4.679  8.331 27.56171  9.2845 10.3520
-##  scales::rescale(x, to = c(0, 1)) 42.657 59.748 65.49741 63.3995 68.6255
+##                              expr    min      lq     mean  median      uq
+##                     cpp_scaler(x)  4.301  7.7195 23.88652  8.5705  9.7120
+##  scales::rescale(x, to = c(0, 1)) 41.166 54.8495 62.98033 58.9435 67.3425
 ##        max neval
-##  17730.046  1000
-##    151.638  1000</code></pre>
+##  14310.219  1000
+##    172.549  1000</code></pre>
 <p>Clearly, our C++ function is much faster at calculating the rescaled values over the 1000 calculations (most easily seen in the <code>mean</code> column for the 1000 tests). Now let’s make a larger vector sampled from a probability distribution and compare the performance:</p>
 <pre class="r"><code># Generate some synthetic data
 
@@ -487,12 +491,12 @@ x1 &lt;- rnorm(n = 1e5, mean = 5, sd = 2)
 
 microbenchmark::microbenchmark(cpp_scaler(x1), scales::rescale(x1, to = c(0,1)), times = 1000)</code></pre>
 <pre><code>## Unit: microseconds
-##                               expr      min        lq      mean    median
-##                     cpp_scaler(x1)  337.499  572.2445  724.7876  591.5475
-##  scales::rescale(x1, to = c(0, 1)) 1258.998 2258.0295 2801.5820 2376.6400
-##         uq       max neval
-##   716.3625  7028.433  1000
-##  3050.3380 12024.881  1000</code></pre>
+##                               expr      min       lq      mean   median
+##                     cpp_scaler(x1)  263.610  555.066  666.8277  611.495
+##  scales::rescale(x1, to = c(0, 1)) 1113.253 2331.661 2647.3975 2493.591
+##        uq      max neval
+##   659.307 4693.781  1000
+##  2698.377 7523.155  1000</code></pre>
 <p>The results clearly speak for themselves in this example. Let’s take a look at one more.</p>
 </div>
 </div>
@@ -550,9 +554,12 @@ x2 &lt;- data.frame(x = rpois(1000, lambda = 3)) %&gt;% # Simulate some integers
 
 microbenchmark::microbenchmark(cpp_entropy(x2$x), r_entropy(x2$x), times = 1000)</code></pre>
 <pre><code>## Unit: microseconds
-##               expr     min       lq      mean   median       uq       max neval
-##  cpp_entropy(x2$x)   6.900   8.1735  11.24246   8.7355   9.7045  1078.182  1000
-##    r_entropy(x2$x) 231.087 268.9245 406.97357 284.9100 328.2760 50089.562  1000</code></pre>
+##               expr     min       lq       mean   median       uq       max
+##  cpp_entropy(x2$x)   5.900   7.1955   9.244283   7.9700   8.6905   807.235
+##    r_entropy(x2$x) 201.836 247.1535 346.625421 266.2785 292.7665 41163.348
+##  neval
+##   1000
+##   1000</code></pre>
 <p>Another clear win for C++! The order of magnitude difference in speed between them is staggering.</p>
 </div>
 </div>
