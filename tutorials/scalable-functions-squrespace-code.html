@@ -1,0 +1,337 @@
+<h2>Welcome</h2>
+
+<p>Welcome to the tutorial! In this short piece we are going to explore the
+motivation for writing functions in C and C++ for use in R and take a
+look at two quick benchmarking examples. Full reproducible R and C++
+code will be presented throughout.</p>
+
+<h2>Why C and C++?</h2>
+
+<p>C and C++ are low-level languages that have been around for decades and
+underpin a staggeringly wide range of software that we all know and use
+day-to-day. Even R itself is written in C! One of the primary reasons
+for their success is their efficiency. C and C++ are compiled languages,
+and are much closer to machine code than high-level languages such as R.
+This means they can run computations far, far faster than high-level
+languages, but require a lot of detailed coding knowledge and skills in
+order to write these programs. While the barrier to entry is much
+higher, particularly if you come from high-level languages or no
+computer science education, the payoffs for applied work can be immense,
+particularly with regards to efficiency.</p>
+
+<p>The volume and size of datasets being analysed by data scientists,
+consultants, and other analysts today are getting increasingly larger.
+As a result, computations on these datasets can take a long time. With
+this in mind, programmers need to be able to write functions that can
+scale to meet the efficiency needs of these modern datasets. C and C++
+are two languages that can help provide this need.</p>
+
+<p>We are going to take a look at two examples of rewriting R code in C++
+and comparing their relative computation time.</p>
+
+<h2>Examples</h2>
+
+<h3>Example 1: Rescaling function</h3>
+
+<p>Rescaling is a common technique used prior to statistical and machine
+learning modelling as it puts all the variables on the same playing
+field. This means techniques that could be biased by large variances,
+such as the gradient descent algorithm used in neural networks, can
+account for this beforehand. Typically (but not always), people would
+rescale into three potential ranges:</p>
+
+<ul>
+<li>  0 to 1</li>
+<li>  -1 to +1</li>
+<li>  Normalised (accounts for mean and standard deviation)</li>
+</ul>
+
+<p>We are going to take a look at the first today, though the code
+presented can extend to any of them as we will discuss.</p>
+
+<h4>The simple, readily available R function</h4>
+
+<p>We can explore the comparative performance of C++ by writing a small
+function and benchmarking the speed of computation over multiple
+automated calculations. While most introductory examples for R users
+learning C and C++ usually involve writing a simple program to compute a
+sum or a mean, we are going to look at something more practical: a
+function to rescale a vector of numbers into a user defined range. The
+sum/mean/median functions and other similar ones are already quite
+highly optimised, so rewriting them into C++ would not afford much gain,
+aside from a handle on the basics. We can examine the existing R
+function in the below code, where we will rescale the numeric vector
+into the range of <code>[0,1]</code>:</p>
+
+<pre><code>library(scales)
+
+# Generate some synthetic data
+
+x &lt;- seq(from = 1, to = 1000, by = 1)
+
+# Rescale it
+
+scales::rescale(x, to = c(0,1))
+</code></pre>
+
+<p>But how does this function work? Essentially, the mathematics under the
+hood looks like this (where <code>x</code> is the value we want to rescale and <code>i</code>
+denotes the index in the vector):</p>
+
+<p>\[x\_{new} = \frac{new\_{max}-new\_{min}}{old\_{max}-old\_{min}}+(x\_{i}-old\_{max})+new\_{max}\]</p>
+
+<p>But what if we were required to rescale hundreds of thousands of values
+at once? What if we had to do this across hundreds of columns in a
+dataframe? Potentially writing an equivalent function in C or C++ might
+afford us large performance gains as dataset size scales. This is
+because the overhead of operations such as for loops is much less in
+these languages compared to R. R is a <em>vectorised</em> language, meaning
+these types of operations are much faster than for loops as R stores the
+entire loop at each iteration.</p>
+
+<h4>C++ version</h4>
+
+<p>We can now directly translate that mathematical equation into C++ using
+the code below (integration with R made simple by the fantastic <code>Rcpp</code>
+package). Note the key differences to most standard R functions:</p>
+
+<ul>
+<li>  <strong>We need to specify the data type for every variable and
+argument.</strong> R does a lot of high level things for us, such as
+converting integers to doubles when we want to do math on both types
+at once. C++ does not do this, so we must declare every variable
+type explicitly. This means the code is more verbose, but is much
+clearer to the interested reader. An example in the code below is
+denoting the input and output vectors as <code>NumericVector</code>.</li>
+<li>  <strong>Operations are accessed with a period.</strong> Similar to Python, C++
+using periods to denote an operation. This can be seen in the usage
+of <code>x.size();</code> where we calculate the <em>length</em> or size of the input
+vector. This length is then used to drive the for loops so that we
+can do the same operation on all entries in the vector.</li>
+<li>  <strong>Arguments are ended with a semicolon.</strong> This is extremely
+important and is the source of many error messages for R users
+learning C++. You must end lines of code that do things with a <code>;</code>.</li>
+<li>  <strong>For loop notation is different and all indexing starts at 0.</strong>
+This is very very critical: Indexing starts at 0 in C and C++, not 1
+like it does in R. Remember this! Further, the loop syntax is also
+different. We need to declare the type of <code>i</code> that we are looping
+over, and then specify the operator <code>++i</code> to increment to <em>new</em>
+values of <code>i</code>.</li>
+<li>  <strong>Comments are written with double forward slashes.</strong> Comments in C
+and C++ are typically denoted by <code>//</code> instead of <code>#</code> used in R.</li>
+</ul>
+
+<p>Taking a step back, examining the math equation and my C++ code
+side-by-side,</p>
+
+<p><em>NOTE: This rescaling function we called <code>cpp_scaler</code> is the
+<code>normalise_catch</code> function I wrote for my R package
+<a href="https://github.com/hendersontrent/catchEmAll"><code>catchEmAll</code></a>.</em></p>
+
+<pre><code>library(Rcpp)
+
+# Write the C++ function
+
+cppFunction(&#39;
+NumericVector cpp_scaler(NumericVector x) {
+
+  int n = x.size();
+  double old_min = 0.0;
+  double old_max = 0.0;
+  double new_min = 0.0;
+  double new_max = 1.0;
+  NumericVector x_new(n);
+
+  // Calculate min
+
+  for (int i = 0;  i &lt; n; ++i){
+    if (x[i] &lt; old_min){
+      old_min = x[i];
+    }
+  }
+
+  // Calculate max
+
+  for (int i = 0; i &lt; n; ++i){
+    if (x[i] &gt; old_max){
+      old_max = x[i];
+    }
+  }
+
+  // Rescale into sigmoidal range
+
+  for (int i = 0;  i &lt; n; ++i){
+    x_new[i] = ((new_max-new_min)/(old_max-old_min))*(x[i]-old_max)+new_max;
+  }
+  return x_new;
+}
+&#39;)
+</code></pre>
+
+<p>If we wanted to further improve the flexibility of our C++ function, we
+could pass in the <code>new_min</code> and <code>new_max</code> components as arguments to the
+overall function to allow the user to pick the range they want to
+rescale into. Further, in a actual project, we would store the C++
+functions in separate <code>.cpp</code> files and call them to R using <code>sourceCpp</code>.
+This is consistent with modular programming.</p>
+
+<p>To test our function’s performance, we can benchmark the performance
+against the <code>rescale</code> function we used in the R package <code>scales</code> using
+the <code>microbenchmark</code> package.</p>
+
+<pre><code># Generate some synthetic data
+
+x &lt;- seq(from = 1, to = 1000, by = 1)
+
+# Benchmark
+
+microbenchmark::microbenchmark(cpp_scaler(x), scales::rescale(x, to = c(0,1)), times = 1000)
+
+## Unit: microseconds
+##                              expr    min     lq     mean  median      uq      max neval
+##                     cpp_scaler(x)  3.827  6.040 18.03594  7.7315  8.9865 9192.121  1000
+##  scales::rescale(x, to = c(0, 1)) 32.844 44.093 51.21626 50.7425 56.3315  140.323  1000
+</code></pre>
+
+<p>Clearly, our C++ function is much faster at calculating the rescaled
+values over the 1000 calculations (most easily seen in the <code>mean</code> column
+for the 1000 tests). Now let’s make a larger vector sampled from a
+probability distribution and compare the performance:</p>
+
+<pre><code># Generate some synthetic data
+
+x1 &lt;- rnorm(n = 1e5, mean = 5, sd = 2)
+
+# Benchmark
+
+microbenchmark::microbenchmark(cpp_scaler(x1), scales::rescale(x1, to = c(0,1)), times = 1000)
+
+## Unit: microseconds
+##                               expr      min        lq      mean    median        uq      max neval
+##                     cpp_scaler(x1)  255.069  383.4695  690.7072  606.6505  657.0925  5750.15  1000
+##  scales::rescale(x1, to = c(0, 1)) 1040.689 1901.0330 2801.6784 2442.1605 2656.3330 99308.63  1000
+</code></pre>
+
+<p>The results clearly speak for themselves in this example. Let’s take a
+look at one more.</p>
+
+<h3>Example 2: Calculating entropy of a signal</h3>
+
+<p>There is an important subfield of mathematics known as <a href="https://en.wikipedia.org/wiki/Information_theory">information
+theory</a> which deals
+with calculations associated with transmitting signals over noisy
+channels. Information theory has shown immense utility in a variety of
+applications, with some notable examples including data compression
+(e.g. MP3, ZIP files), message encoding, and understanding how complex
+networks such as the brain and financial markets transmit information.
+In information theory, <em>information</em> is defined as a <em>reduction in
+uncertainty/surprise</em>. By extension, this means that high probability
+events communicate <em>less</em> information than low probability events,
+because we learn more about a system from the occurrence of a low
+probability event.</p>
+
+<p>One of the core quantities in information theory is <a href="https://en.wikipedia.org/wiki/Entropy_(information_theory">Shannon
+entropy</a>),
+which is the average reduction in uncertainty of a given variable.
+Shannon entropy is measured in <em>bits</em> (when using log base 2) and is
+mathematically defined as:</p>
+
+<p>\[H(X) = -\sum\_{i=1}^{n}P(x\_{i})log\_{2}P(x\_{i})\]</p>
+
+<p>Enough theory, let’s code up a function from scratch in both R and C++
+this time and compare their performance on a simulated vector of values.
+Since Shannon entropy works with values taken from a <a href="https://en.wikipedia.org/wiki/Probability_mass_function">probability mass
+function</a>, we
+are going to feed in a vector of probabilities we are calling <code>X</code>.</p>
+
+<h4>R function</h4>
+
+<pre><code>r_entropy &lt;- function(X){
+
+  H_of_X &lt;- 0
+
+  for(i in seq_along(X)){
+    H_of_X &lt;- i*log2(i)
+  }
+
+  H_of_X &lt;- -H_of_X
+  return(H_of_X)
+}
+</code></pre>
+
+<h4>C++ function</h4>
+
+<p>This time I will show you the C++ code as if I wrote it in a dedicated
+<code>.cpp</code> file. Note the use of <code>#include</code> headers which give us access to
+certain operators (think of these as like R packages or libraries for
+C++).</p>
+
+<pre><code>#include &lt;Rcpp.h&gt;
+#include &lt;math.h&gt;
+using namespace Rcpp;
+
+// [[Rcpp::export]]
+double cpp_entropy(NumericVector X) {
+
+  int n = X.size();
+  double H_of_X = 0.0;
+
+  for(int i = 0; i &lt; n; ++i){
+    H_of_X += X[i]*log2(X[i]);
+  }
+
+  return -H_of_X;
+}
+</code></pre>
+
+<h4>Performance comparison</h4>
+
+<pre><code>library(dplyr) # For dataframe wrangling
+library(magrittr) # For the &#39;%&gt;%&#39; operator
+
+# Generate some synthetic probabilities
+
+x2 &lt;- data.frame(x = rpois(1000, lambda = 3)) %&gt;% # Simulate some integers
+  mutate(x = x / sum(x)) # Computes probabilities that sum to 1
+
+# Benchmark
+
+microbenchmark::microbenchmark(cpp_entropy(x2$x), r_entropy(x2$x), times = 1000)
+
+## Unit: microseconds
+##               expr     min       lq       mean   median       uq      max neval
+##  cpp_entropy(x2$x)   5.945   7.1575   9.255549   7.6395   8.4080  851.514  1000
+##    r_entropy(x2$x) 203.223 243.4075 300.568206 251.9775 285.3255 4560.251  1000
+</code></pre>
+
+<p>Another clear win for C++! The order of magnitude difference in speed
+between them is staggering.</p>
+
+<h2>Final thoughts</h2>
+
+<p>C and C++ are fantastic languages that have stood the test of time for a
+multitude of reasons. While programming in them takes time and a
+relatively steep learning curve, I firmly believe it is worth the
+investment, particularly if you want a better grasp on the core ideas of
+general programming and/or want faster functions that scale well to
+large-scale problems. However, do be aware that learning these languages
+is tricky, and coding more complex algorithms and functions can be very
+tedious. But if you are likely to reuse functions a lot or need to scale
+to meet the computational demands of large datasets, investing the time
+in coding things in C/C++ could be well worth it - especially if you
+turn your functions into an R package!</p>
+
+<p>Some other resources that I recommend to get started writing code in
+these languages (especially for use in R) are:</p>
+
+<ul>
+<li>  <a href="https://adv-r.hadley.nz/rcpp.html">Rewriting R code in C++</a> - from
+the master Hadley Wickham</li>
+<li>  <a href="http://www.rcpp.org/book/">Seamless R and C++ Integration with
+Rcpp</a> - from the author of the <code>Rcpp</code>
+package Dirk Eddelbuettel</li>
+<li>  <a href="https://www.oreilly.com/library/view/effective-modern-c/9781491908419/">Effective Modern
+C++</a> -
+by Scott Meyers</li>
+</ul>
+
