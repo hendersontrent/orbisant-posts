@@ -16,6 +16,8 @@ if(!dir.exists('tutorials')) dir.create('tutorials')
 # hctsa
 
 if(!dir.exists('hctsa')) dir.create('hctsa')
+if(!dir.exists('hctsa/data')) dir.create('hctsa/data')
+if(!dir.exists('hctsa/output')) dir.create('hctsa/output')
 
 # Probabilistic programming
 
