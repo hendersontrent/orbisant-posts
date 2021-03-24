@@ -17,6 +17,7 @@ library(caTools)
 library(brms)
 library(bayesplot)
 library(Cairo)
+library(broom)
 
 #-------------------- Data loads -------------------------------
 
@@ -200,7 +201,11 @@ outs <- rbindlist(storage, use.names = TRUE)
 # Render heatmap graphic
 
 CairoPNG("hctsa/output/feature_matrix.png",800,600)
-plot_feature_matrix(outs, is_normalised = FALSE, id_var = "country", method = "MinMax")
+plot_feature_matrix(outs, is_normalised = FALSE, id_var = "country", method = "RobustSigmoid")
+dev.off()
+
+CairoPNG("hctsa/output/pca.png",800,600)
+plot_low_dimension(outs, is_normalised = FALSE, id_var = "country", group_var = "continent_name", method = "RobustSigmoid", plot = TRUE)
 dev.off()
 
 #-------------------- Statistical modelling --------------------
