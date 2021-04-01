@@ -12,7 +12,7 @@ library(tidyverse)
 library(janitor)
 library(readxl)
 library(data.table)
-library(catchEmAll)
+library(catch22)
 library(caTools)
 library(brms)
 library(bayesplot)
@@ -187,7 +187,7 @@ for(i in countries){
   
   x <- tmp$co2_per_capita
   
-  calcs <- catch_all(x) %>%
+  calcs <- catch22_all(x) %>%
     mutate(country = i) %>%
     left_join(dictionary, by = c("country" = "country"))
   
@@ -198,6 +198,12 @@ outs <- rbindlist(storage, use.names = TRUE)
 
 #-------------------- Data visualisation -----------------------
 
+# Data quality check
+
+CairoPNG("hctsa/output/data-quality.png",800,600)
+plot_quality_matrix(outs)
+dev.off()
+
 # Render heatmap graphic
 
 CairoPNG("hctsa/output/feature_matrix.png",800,600)
@@ -207,33 +213,3 @@ dev.off()
 CairoPNG("hctsa/output/pca.png",800,600)
 plot_low_dimension(outs, is_normalised = FALSE, id_var = "country", group_var = "continent_name", method = "RobustSigmoid", plot = TRUE)
 dev.off()
-
-#-------------------- Statistical modelling --------------------
-
-# Normalise data for modelling
-
-normed <- outs %>%
-  dplyr::select(-c(iso_code)) %>%
-  group_by(names) %>%
-  mutate(values = normalise_catch(values, method = "z-score")) %>%
-  ungroup() %>%
-  pivot_wider(names_from = names, values_from = values) %>%
-  mutate(continent_name = as.factor(continent_name))
-
-# Split into train and test sets
-
-set.seed(123) 
-split <- sample.split(normed$continent_name, SplitRatio = 0.75) 
-train <- subset(normed, split == TRUE) 
-test <- subset(normed, split == FALSE)
-
-# Build classification model
-
-m1 <- brm(continent_name ~ ., family = "categorical", data = train,
-          prior = c(set_prior(prior = "normal(0,5)", class = "Intercept"),
-                    set_prior(prior = "student_t(7,0,2.5)", class = "b")),
-          chains = 3, iter = 3000, seed = 123)
-
-# Test classification accuracy
-
-
