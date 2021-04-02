@@ -100,9 +100,9 @@ draw_lines <- function(iso_code = "AUS", do_log = FALSE){
     p <- others %>%
       ggplot() +
       geom_line(aes(x = year, y = log(co2_per_capita), group = iso_code),
-                colour = "grey50", alpha = 0.6, size = 0.1) +
+                colour = "#67a9cf", alpha = 0.6, size = 0.2) +
       geom_line(data = my_iso, aes(x = year, y = log(co2_per_capita)),
-                colour = "#ffa600", size = 0.8) +
+                colour = "#ef8a62", size = 0.8) +
       labs(title = "Time-series of log-scaled Co2 emissions per capita by country",
            x = "Year",
            y = "log(Co2 Emissions per Capita)")
@@ -111,9 +111,9 @@ draw_lines <- function(iso_code = "AUS", do_log = FALSE){
     p <- others %>%
       ggplot() +
       geom_line(aes(x = year, y = co2_per_capita, group = iso_code),
-                colour = "grey50", size = 0.1) +
+                colour = "#67a9cf", size = 0.1) +
       geom_line(data = my_iso, aes(x = year, y = co2_per_capita),
-                colour = "#ffa600", size = 0.8) +
+                colour = "#ef8a62", size = 0.8) +
       labs(title = "Time-series of Co2 emissions per capita by country",
            x = "Year",
            y = "Co2 Emissions per Capita")
@@ -212,4 +212,69 @@ dev.off()
 
 CairoPNG("hctsa/output/pca.png",800,600)
 plot_low_dimension(outs, is_normalised = FALSE, id_var = "country", group_var = "continent_name", method = "RobustSigmoid", plot = TRUE)
+dev.off()
+
+#-------------------- Correlation analysis ---------------------
+
+# Normalise values
+
+normed <- outs %>%
+  dplyr::select(-c(iso_code, continent_name)) %>%
+  dplyr::select(c(country, names, values)) %>%
+  dplyr::group_by(names) %>%
+  dplyr::mutate(values = normalise_catch(values, method = "z-score")) %>%
+  dplyr::ungroup() %>%
+  tidyr::drop_na()
+
+# Calculate correlations
+
+cor_dat <- normed %>%
+  tidyr::pivot_wider(id_cols = "names", names_from = "country", values_from = "values") %>%
+  dplyr::select(-c(names))
+
+result <- cor(cor_dat)
+
+# Produce data visualisation
+
+melted <- reshape2::melt(result)
+
+CairoPNG("hctsa/output/cormat.png",1100,1000)
+pcor <- melted %>%
+  ggplot(aes(x = Var1, y = Var2)) +
+  geom_tile(aes(fill = value)) +
+  labs(title = "Feature value correlations between countries",
+       x = NULL,
+       y = NULL,
+       fill = "Correlation Coefficient") +
+  scale_fill_distiller(palette = "RdYlBu",
+                       limits = c(-1,1)) +
+  theme_bw() +
+  theme(panel.grid = element_blank(),
+        legend.position = "bottom",
+        axis.text.x = element_text(angle = 90, hjust = 1))
+print(pcor)
+dev.off()
+
+# Hierarchically-cluster and reproduce graphic
+
+row.order <- hclust(dist(result))$order # Hierarchical cluster on rows
+col.order <- hclust(dist(t(result)))$order # Hierarchical cluster on columns
+dat_new <- result[row.order, col.order] # Re-order matrix by cluster outputs
+cluster_out <- reshape2::melt(as.matrix(dat_new)) # Turn into dataframe
+
+CairoPNG("hctsa/output/cormat-clustered.png",1100,1000)
+pcorc <- cluster_out %>%
+  ggplot(aes(x = Var1, y = Var2)) +
+  geom_tile(aes(fill = value)) +
+  labs(title = "Feature value correlations between countries with hierarchical clustering",
+       x = NULL,
+       y = NULL,
+       fill = "Correlation Coefficient") +
+  scale_fill_distiller(palette = "RdYlBu",
+                       limits = c(-1,1)) +
+  theme_bw() +
+  theme(panel.grid = element_blank(),
+        legend.position = "bottom",
+        axis.text.x = element_text(angle = 90, hjust = 1))
+print(pcorc)
 dev.off()
