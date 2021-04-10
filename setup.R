@@ -12,6 +12,7 @@
 # Tutorials
 
 if(!dir.exists('tutorials')) dir.create('tutorials')
+if(!dir.exists('tutorials/output')) dir.create('tutorials/output')
 
 # hctsa
 
