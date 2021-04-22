@@ -230,31 +230,3 @@ train %>%
   theme_bw() +
   theme(panel.grid.minor = element_blank(),
         legend.position = "bottom")
-
-#--------------------- Multivariate tests -----------
-
-# Graph demand as X and price as Y
-
-nsw %>%
-  ggplot(aes(x = totaldemand, y = rrp)) +
-  geom_point(colour = "#003f5c", alpha = 0.8) +
-  geom_smooth(formula = y ~ x, method = "lm") +
-  labs(title = "Correlation between demand and price",
-       x = "Total Demand",
-       y = "RRP") +
-  theme_bw() +
-  theme(panel.grid.minor = element_blank())
-
-# Graph demand as Xt-1 and price as Yt
-
-laggeR::plot_ar_multiv(timeseriesx = nsw$totaldemand, timeseriesy = nsw$rrp, lags = c(1)) # devtools::install_github("hendersontrent/laggeR")
-
-# Graph demand as Yy and price as Xt-1
-
-laggeR::plot_ar_multiv(timeseriesx = nsw$rrp, timeseriesy = nsw$totaldemand, lags = c(1))
-
-# Check for temporal dependence between RRP and Total Demand using transfer entropy
-
-set.seed(123)
-te <- RTransferEntropy::transfer_entropy(x = nsw$total_demand, y = nsw$rrp)
-te

@@ -27,3 +27,7 @@ if(!dir.exists('probabilistic-programming')) dir.create('probabilistic-programmi
 # Forecasting
 
 if(!dir.exists('forecasting')) dir.create('forecasting')
+
+# Exploration
+
+if(!dir.exists('exploration')) dir.create('exploration')
