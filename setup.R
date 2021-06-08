@@ -23,3 +23,11 @@ if(!dir.exists('hctsa/output')) dir.create('hctsa/output')
 # Probabilistic programming
 
 if(!dir.exists('probabilistic-programming')) dir.create('probabilistic-programming')
+
+# Forecasting
+
+if(!dir.exists('forecasting')) dir.create('forecasting')
+
+# Exploration
+
+if(!dir.exists('exploration')) dir.create('exploration')
