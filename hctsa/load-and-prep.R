@@ -12,7 +12,8 @@ library(tidyverse)
 library(janitor)
 library(readxl)
 library(data.table)
-library(catch22)
+library(Rcatch22)
+library(theft)
 library(caTools)
 library(rstan)
 library(bayesplot)
@@ -211,7 +212,8 @@ plot_feature_matrix(outs, is_normalised = FALSE, id_var = "country", method = "R
 dev.off()
 
 CairoPNG("hctsa/output/pca.png",800,600)
-plot_low_dimension(outs, is_normalised = FALSE, id_var = "country", group_var = "continent_name", method = "RobustSigmoid", plot = TRUE)
+plot_low_dimension(outs, is_normalised = FALSE, id_var = "country", group_var = "continent_name", method = "RobustSigmoid", low_dim_method = "PCA",
+                   plot = TRUE)
 dev.off()
 
 #-------------------- Correlation analysis ---------------------

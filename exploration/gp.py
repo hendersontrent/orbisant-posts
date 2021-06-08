@@ -45,16 +45,42 @@ def fit_gp(spec, X, y):
 
 #----------------- Prior sampling check -----------
 
-def sample_gp_prior(model, X, n, n_samples):
+def sample_gp_prior():
   
-  import pandas as pd
   import numpy as np
+  import pandas as pd
+  from sklearn.gaussian_process.kernels import WhiteKernel, ExpSineSquared, ConstantKernel
+  from sklearn.gaussian_process import GaussianProcessRegressor
   
-  data_df = pd.DataFrame({'X' : X})
+  # Generate X variable for time series
   
-  X1 = data_df['X'].values.reshape(n, 1)
+  n = 2905
+  t = np.arange(n)
+  data_df = pd.DataFrame({'t' : t})
   
-  prior_samples = model.sample_y(X = X1, n_samples = n_samples)
+  # Add kernels together for white noise and cyclic fluctuations
+  
+  k0 = WhiteKernel(noise_level=0.3**2, noise_level_bounds=(0.1**2, 0.5**2))
+  
+  k1 = ConstantKernel(constant_value=2) * \
+    ExpSineSquared(length_scale=1.0, periodicity=8, periodicity_bounds=(6, 10))
+  
+  kernel_1  = k0 + k1 
+  
+  # Instantiate regressor
+  
+  gp1 = GaussianProcessRegressor(
+      kernel=kernel_1, 
+      n_restarts_optimizer=10, 
+      normalize_y=True,
+      alpha=0.0
+  )
+  
+  # Draw from prior distribution
+  
+  X = data_df['t'].values.reshape(n, 1)
+  
+  prior_samples = gp1.sample_y(X=X, n_samples=100)
   return prior_samples
   
 #----------------- GP predictions -----------------
