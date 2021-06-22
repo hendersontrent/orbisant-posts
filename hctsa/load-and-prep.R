@@ -216,6 +216,11 @@ plot_low_dimension(outs, is_normalised = FALSE, id_var = "country", group_var = 
                    plot = TRUE)
 dev.off()
 
+CairoPNG("hctsa/output/tsne.png",800,600)
+plot_low_dimension(outs, is_normalised = FALSE, id_var = "country", group_var = "continent_name", method = "RobustSigmoid", low_dim_method = "t-SNE",
+                   perplexity = 30, plot = TRUE)
+dev.off()
+
 #-------------------- Correlation analysis ---------------------
 
 # Normalise values

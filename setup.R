@@ -13,6 +13,7 @@
 
 if(!dir.exists('tutorials')) dir.create('tutorials')
 if(!dir.exists('tutorials/output')) dir.create('tutorials/output')
+if(!dir.exists('tutorials/heteroscedasticity')) dir.create('tutorials/heteroscedasticity')
 
 # hctsa
 
