@@ -1,5 +1,5 @@
 ---
-title: "Handling heteroscedasticity: A practical overview of robust estimators"
+title: "Handling heteroscedasticity: A practical introduction of robust estimators"
 author: "Trent Henderson"
 date: "21/03/2021"
 output: html_document
@@ -11,11 +11,11 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ## Welcome
 
-Welcome to the tutorial! In this short piece we are going to explore robust regression estimators and how they can be used to address violations of the homoscedasticity assuption of linear regression.
+Welcome to the tutorial! In this short piece we are going to explore robust regression estimators and how they can be used to address violations of the homoscedasticity assumption of linear regression. All R code to reproduce the outputs is presented throughout.
 
 ## Heteroscedasticity
 
-X
+Heteroscedasticity is a big word that essentially just means "non-constant variance" or that the variance of our `y` value varies as a function of the variable(s) that predict it (i.e. `x`). On a bivariate scatterplot, heteroscedasticity is usually visible as a "fanning" shape as we move along the `x` axis. We can see this in the plot below.
 
 The code below generates the plot.
 
@@ -64,6 +64,8 @@ library(lmtest)
 lmtest::bptest(mod) 
 ```
 
+Evidently, our p-value is much less than any of the traditional cut-offs of .05, .01, and .001, which strongly supports our case for the presence of heteroscedasticity.
+
 ## Tools to handle heteroscedasticity
 
 Now that we have confirmed the presence of heteroscedasticity, we can begin looking at our options. Typically, most people would opt for one of the following:
@@ -90,7 +92,7 @@ In plain words, we are computing the product between the transpose of `X` and `X
 Now, robust estimators introduce some spice to this equation by adding some "meat" between the existing "bread" of the matrix form regression equation (this is why statisticians refer to robust estimators as a regression "sandwich"). This "meat" is typically referred to as `Omega` and in the context of the full equation looks like this:
 
 $$(X^{'}X)^{-1}X^{'}\Omega X (X^{'}X)^{-1}$$
-Omega flexibly acts on the diagonal of the variance-covariance matrix, and relaxes the assumption of homogeneity by enabling differing variances along the matrix diagonal. In practice, the inclusion of heteroscedastic-robust estimators reduces the size of test statistics, drives significance values away from zero, and increases standard errors to reflect the variance structure of the data. There are several different types of Omega that we can choose from. Statistical software usually denotes these numerically as different "heteroscedastic-consistent" (HC) options:
+Omega flexibly acts on the diagonal of the variance-covariance matrix, and relaxes the assumption of homogeneity by enabling differing variances along the matrix diagonal. **In practice, the inclusion of heteroscedastic-robust estimators reduces the size of test statistics, drives significance values away from zero, and increases standard errors to reflect the variance structure of the data.** There are several different types of Omega that we can choose from. Statistical software usually denotes these numerically as different "heteroscedastic-consistent" (HC) options:
 
 * HC0
 * HC1
@@ -101,15 +103,16 @@ Omega flexibly acts on the diagonal of the variance-covariance matrix, and relax
 For quite a lot of datasets, each of these options usually return quite similar results, and so the default HC3 option specified by the authors is usually recommended. This is because HC3 has been shown to give the best performance on small samples as it weights influential observations less than other options (though HC1 and HC2 also perform decently on small samples). HC0 is argued on the basis of an asymptotic nature and HC4 is a more recently proposed alternative to HC3 that may perform even better in the presence of influential arguments. For the sake of brevity, I will only present the mathematics of HC3 as that will be our focus today (see [here](https://cran.r-project.org/web/packages/sandwich/vignettes/sandwich.pdf) for details on the others):
 
 $$w_{i} = \frac{\hat{u_{i}^{2}}}{(1-h_{i})^{2}}$$
-In this equation, `h` represents the diagonal elements of the [hat matrix](https://en.wikipedia.org/wiki/Projection_matrix)  - which describes the mapping of the `y` variable values to our predicted `y-hat` values.
+In this equation, `u` represents our model errors and `h` represents the diagonal elements of the [hat matrix](https://en.wikipedia.org/wiki/Projection_matrix)  - which describes the mapping of the `y` variable values to our predicted `y-hat` values. In comparison, the standard OLS assumption would have a `w` weight vector described by:
 
-Robust estimators are implemented in `R` using the aptly named `sandwich` package. We can adjust our initial OLS estimates with a minimal amount of additional code by simply calling the robust estimation on our regression model object. The `sjPlot` package provides some nice auto-formatted tables to view outputs:
+$$w_{i} = \sigma^{2}$$
+Where each element of the matrix diagonal receives the same variance - which is consistent with the standard modelling assumption we all know. Robust estimators are implemented in `R` using the aptly named `sandwich` package. We can adjust our initial OLS estimates with a minimal amount of additional code by simply calling the robust estimation on our regression model object. The `sjPlot` package provides some nice auto-formatted tables to view outputs:
 
 ```{r, warning = FALSE, message = FALSE, echo = FALSE}
 library(sandwich)
 library(sjPlot)
 
-tab_model(mod, vcov.fun = "HC3", show.se = TRUE)
+tab_model(mod, vcov.fun = "HC", show.se = TRUE)
 ```
 
 ## Concluding thoughts and additional resources
