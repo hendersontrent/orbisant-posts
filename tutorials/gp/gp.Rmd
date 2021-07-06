@@ -1,0 +1,183 @@
+---
+title: "Gaussian processes are sick"
+author: "Trent Henderson"
+date: 
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Welcome
+
+Welcome to the tutorial! In this short piece, we are going to explore the *absolute* fundamentals of [Gaussian processes](https://en.wikipedia.org/wiki/Gaussian_process) (GP) through an applied example. I was motivated to write this piece after recently finishing the seminal text in the field: [Gaussian processes for machine learning](http://www.gaussianprocess.org/gpml/). While an incredibly detailed resource, the treatment is extremely technical and layered with complex higher mathematics. Moral of the story: do not be misled by the word "Gaussian" into thinking GPs are simple. They are very complex and a deep understanding of them requires a rigorous handle on linear algebra and calculus. However, building an intuition for them and understanding why they are so absurdly flexible and useful, is our goal here. Further, I have always used high-level libraries such as [`GPy`](https://sheffieldml.github.io/GPy/) and [`GauPro`](https://cran.r-project.org/web/packages/GauPro/vignettes/GauPro.html) for GPs and wanted to build one manually in my beloved [`Stan`](https://mc-stan.org/docs/2_27/stan-users-guide/gaussian-processes-chapter.html).
+
+*Caveat: GPs are very complex and many other excellent detailed guides are available. This article seeks to provide a very short introduction in the conversational style of usual Orbisant articles with available code.*
+
+### Quick conceptual introduction to GPs
+
+In [Bayesian inference](https://en.wikipedia.org/wiki/Bayesian_statistics) we typically specify a prior for a particular *parameter*, such as the coefficient of a predictor in a regression model. In a GP, however, we instead specify a prior over *functions*. Let's break that down for a moment. We are specifying the likely space of entire functions that are likely to have generated the data we have observed. To make it a bit clearer, consider the specification of a Gaussian (normal) distribution:
+
+$$\mathcal{N}(\mu,\sigma^{2})$$
+
+The normal distribution is completely parameterised by its mean and variance (or standard deviation). A GP extends this same idea to the next layer up, meaning it is parameterised by a **mean function** and a **covariance function.** Mathematically, we can write this as:
+
+$$f(x) \sim GP(m(x), K(x,x{'}))$$
+
+By extension, we can generate predictions from the model according to the following:
+
+$$y_{i} = \mathcal{N}(f(x_{i}), \sigma)$$
+
+The information contained in the above is very important. One of the core characteristics of a GP is that the joint distribution of any of the Gaussian random variables is a multivariate Gaussian - which is much more interpretable to us than a lot of alternative distributions. Amazing! This lets us make particularly difficult problems in statistics and machine learning analytically tractable. Moreover, a way to visualise this (more on this later) is to imagine the shaded credible intervals on the resultant plot from a GP to be predictions of a sample of a whole host of infinite *different functions* that exist within the space specified by your mean and covariance functions.
+
+However, strangely enough, the mean function for most purposes actually contributes very little to a GP's generalisability - it's all in the covariance function! So, we typically just set the mean to 0. But boy there are a lot of choices of covariance functions...
+
+#### Covariance functions, kernels, and connections to other models
+
+The choice of covariance function is the crux of GP modelling, just like the specification of informative priors in Bayesian inference. This is often the point where subject matter expertise reigns supreme. There are a lot of choices available to us (see [here](https://www.cs.toronto.edu/~duvenaud/cookbook/) for an overview). The most common one is known as the Squared Exponential Kernel (SE) or a "Radial Basis Function" (RBF). The latter may sound familiar, as this is often the default for common machine learning algorithms such as [Support vector machines](https://en.wikipedia.org/wiki/Support-vector_machine) (SVM). Mathematically, this kernel is defined as:
+
+$$k_{SE}(x,x^{'}) = \sigma^{2} exp \left(-\frac{(x-x^{'})^{2}}{2l^{2}}\right)$$
+
+Here, the `l` parameter defines the lengthscale - how long the "wiggles" in your function are, while sigma-squared specifies the average distance away from the mean. As a final note, while it may be tempting to use any function under the sun as a covariance function in a GP, you cannot do this! There are a range of rules that these functions must follow (see [here](http://www.gaussianprocess.org/gpml/) for more).
+
+### An applied example
+
+So much math! Let's put it into visuals and code to help make sense of what is going on.
+
+To start with, let's look at a dataset with only 5 (!!) points.
+
+```{r, warning = FALSE, message = FALSE, results = 'hide'}
+library(dplyr)
+library(magrittr)
+library(ggplot2)
+
+tmp <- data.frame(x = seq(0, 4, 1)) %>%
+  mutate(y = sin(x))
+
+tmp %>%
+  ggplot(aes(x = x, y = y)) +
+  geom_point(size = 2.5)
+```
+
+Now many other models would not even fit to this data, let alone would most people consider modelling such limited N in the first place. But what if we wanted to get a basic understanding of some *potential* processes that might have generated this data? One (terrible) option would be to fit increasingly higher order polynomials to this data, which would return very high fit statistics, but as we know, would generalise and extrapolate horrendously and ruin any chance at statistical inference. Another option (surprise, surprise) is to use a GP.
+
+```{r, warning = FALSE, message = FALSE, results = 'hide'}
+# Specify model
+
+model <- "
+data {
+  int<lower=1> N1;
+  real x1[N1];
+  vector[N1] y1;
+  int<lower=1> N2;
+  real x2[N2];
+}
+
+transformed data {
+  real delta = 1e-9;
+  int<lower=1> N = N1 + N2;
+  real x[N];
+  for (n1 in 1:N1) x[n1] = x1[n1];
+  for (n2 in 1:N2) x[N1 + n2] = x2[n2];
+}
+
+parameters {
+  real<lower=0> rho;
+  real<lower=0> alpha;
+  real<lower=0> sigma;
+  vector[N] eta;
+}
+
+transformed parameters {
+  vector[N] f;
+  {
+    matrix[N, N] L_K;
+    matrix[N, N] K = cov_exp_quad(x, alpha, rho);
+
+    // diagonal elements
+    for (n in 1:N)
+      K[n, n] = K[n, n] + delta;
+
+    L_K = cholesky_decompose(K);
+    f = L_K * eta;
+  }
+}
+
+model {
+  rho ~ inv_gamma(5, 5);
+  alpha ~ std_normal();
+  sigma ~ std_normal();
+  eta ~ std_normal();
+
+  y1 ~ normal(f[1:N1], sigma);
+}
+
+generated quantities {
+  vector[N2] y2;
+  for (n2 in 1:N2)
+    y2[n2] = normal_rng(f[N1 + n2], sigma);
+}
+"
+
+# Set up data for Stan
+
+stan_data <- list(N1 = nrow(tmp),
+                  x1 = tmp$x,
+                  y1 = tmp$y,
+                  N2 = nrow(tmp),
+                  x2 = tmp$x)
+
+# Run model
+
+m1 <- stan(model_code = model,
+           data = stan_data, 
+           iter = 4000, 
+           chains = 3, 
+           control = list(max_treedepth = 15, 
+                          adapt_delta = 0.99),
+           seed = 123)
+```
+
+Once the [MCMC](https://en.wikipedia.org/wiki/Markov_chain_Monte_Carlo) sampling is complete, we can then extract the posterior estimates from the model object and plot it.
+
+```{r, warning = FALSE, message = FALSE, results = 'hide'}
+# Extract posterior
+
+posterior <- as.data.frame(m1) %>%
+  dplyr::select(c(24:28)) %>%
+  clean_names() %>%
+  mutate(iter = row_number()) %>%
+  pivot_longer(cols = 1:5, names_to = "x", values_to = "y") %>%
+  mutate(x = gsub(".*_", "\\1", x),
+         x = as.numeric(x),
+         x = x-1) %>%
+  group_by(x) %>%
+  summarise(median = median(y),
+            mean = mean(y),
+            lower = quantile(y, probs = 0.950),
+            upper = quantile(y, probs = 0.050)) %>%
+  ungroup()
+
+# Plot
+
+tmp %>%
+  ggplot() +
+  geom_ribbon(data = posterior, aes(x = x, ymin = lower, ymax = upper), alpha = 0.4, fill = "steelblue2") +
+  geom_line(data = posterior, aes(x = x, y = median), colour = "steelblue2") +
+  geom_point(aes(x = x, y = y), size = 2.5)
+```
+
+### Additional thoughts
+
+While we considered only an extremely basic example here, I just wanted to flag the utility of GPs. GPs are so flexible that they can be used for both classification and regression, even time series, and can fit an almost unfathomably large number of real-world and synthetic datasets. However, as always in statistics, caution is advised when using GPs and it is strongly recommended that deep thought be used to specify the parameters of the model.
+
+### Resources for further reading
+
+If you are mathematically inclined, definitely check out the seminal [Rasmussen and Williams textbook]((http://www.gaussianprocess.org/gpml/)). Otherwise, some other lighter but still very useful reading includes:
+
+* [A Visual Exploration of Gaussian Processes](https://distill.pub/2019/visual-exploration-gaussian-processes/)
+* [Gaussian processes, not quite for dummies](https://thegradient.pub/gaussian-process-not-quite-for-dummies/)
+* [Introduction to Gaussian Processes](https://www.cs.toronto.edu/~hinton/csc2515/notes/gp_slides_fall08.pdf)
+* [Gaussian process regression tutorial](https://nbviewer.jupyter.org/github/SheffieldML/notebook/blob/master/GPy/basic_gp.ipynb)
+* [The Kernel Cookbook](https://www.cs.toronto.edu/~duvenaud/cookbook/)
