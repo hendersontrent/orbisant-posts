@@ -63,26 +63,80 @@ tmp %>%
 Now many other models would not even fit to this data, let alone would most people consider modelling such limited N in the first place. But what if we wanted to get a basic understanding of some *potential* processes that might have generated this data? One (terrible) option would be to fit increasingly higher order polynomials to this data, which would return very high fit statistics, but as we know, would generalise and extrapolate horrendously and ruin any chance at statistical inference. Another option (surprise, surprise) is to use a GP.
 
 ```{r, warning = FALSE, message = FALSE, results = 'hide'}
-# Set up data
-
-stan_data <- list(N = nrow(tmp),
-                  x = tmp$x)
-
 # Specify model
 
 model <- "
+data {
+  int<lower=1> N1;
+  real x1[N1];
+  vector[N1] y1;
+  int<lower=1> N2;
+  real x2[N2];
+}
 
+transformed data {
+  real delta = 1e-9;
+  int<lower=1> N = N1 + N2;
+  real x[N];
+  for (n1 in 1:N1) x[n1] = x1[n1];
+  for (n2 in 1:N2) x[N1 + n2] = x2[n2];
+}
+
+parameters {
+  real<lower=0> rho;
+  real<lower=0> alpha;
+  real<lower=0> sigma;
+  vector[N] eta;
+}
+
+transformed parameters {
+  vector[N] f;
+  {
+    matrix[N, N] L_K;
+    matrix[N, N] K = cov_exp_quad(x, alpha, rho);
+
+    // diagonal elements
+    for (n in 1:N)
+      K[n, n] = K[n, n] + delta;
+
+    L_K = cholesky_decompose(K);
+    f = L_K * eta;
+  }
+}
+
+model {
+  rho ~ inv_gamma(5, 5);
+  alpha ~ std_normal();
+  sigma ~ std_normal();
+  eta ~ std_normal();
+
+  y1 ~ normal(f[1:N1], sigma);
+}
+
+generated quantities {
+  vector[N2] y2;
+  for (n2 in 1:N2)
+    y2[n2] = normal_rng(f[N1 + n2], sigma);
+}
 "
+
+# Set up data for Stan
+
+stan_data <- list(N1 = nrow(tmp),
+                  x1 = tmp$x,
+                  y1 = tmp$y,
+                  N2 = nrow(tmp),
+                  x2 = tmp$x)
 
 # Run model
 
 m1 <- stan(model_code = model,
            data = stan_data, 
-           iter = 3000, 
+           iter = 4000, 
            chains = 3, 
-           control = list(max_treedepth = 15),
-           seed = 123
-          )
+           control = list(max_treedepth = 15, 
+                          adapt_delta = 0.99),
+           seed = 123)
 ```
 
 Once the [MCMC](https://en.wikipedia.org/wiki/Markov_chain_Monte_Carlo) sampling is complete, we can then extract the posterior estimates from the model object and plot it.
@@ -90,11 +144,28 @@ Once the [MCMC](https://en.wikipedia.org/wiki/Markov_chain_Monte_Carlo) sampling
 ```{r, warning = FALSE, message = FALSE, results = 'hide'}
 # Extract posterior
 
-posterior <- as.data.frame(m1)
+posterior <- as.data.frame(m1) %>%
+  dplyr::select(c(24:28)) %>%
+  clean_names() %>%
+  mutate(iter = row_number()) %>%
+  pivot_longer(cols = 1:5, names_to = "x", values_to = "y") %>%
+  mutate(x = gsub(".*_", "\\1", x),
+         x = as.numeric(x),
+         x = x-1) %>%
+  group_by(x) %>%
+  summarise(median = median(y),
+            mean = mean(y),
+            lower = quantile(y, probs = 0.950),
+            upper = quantile(y, probs = 0.050)) %>%
+  ungroup()
 
 # Plot
 
-
+tmp %>%
+  ggplot() +
+  geom_ribbon(data = posterior, aes(x = x, ymin = lower, ymax = upper), alpha = 0.4, fill = "steelblue2") +
+  geom_line(data = posterior, aes(x = x, y = median), colour = "steelblue2") +
+  geom_point(aes(x = x, y = y), size = 2.5)
 ```
 
 ### Additional thoughts
