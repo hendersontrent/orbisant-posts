@@ -1,5 +1,5 @@
 ---
-title: "Gaussian processes are sick"
+title: "Gaussian processes are very cool"
 author: "Trent Henderson"
 date: 
 output: html_document
@@ -11,9 +11,9 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ### Welcome
 
-Welcome to the tutorial! In this short piece, we are going to explore the *absolute* fundamentals of [Gaussian processes](https://en.wikipedia.org/wiki/Gaussian_process) (GP) through an applied example. I was motivated to write this piece after recently finishing the seminal text in the field: [Gaussian processes for machine learning](http://www.gaussianprocess.org/gpml/). While an incredibly detailed resource, the treatment is extremely technical and layered with complex higher mathematics. Moral of the story: do not be misled by the word "Gaussian" into thinking GPs are simple. They are very complex and a deep understanding of them requires a rigorous handle on linear algebra and calculus. However, building an intuition for them and understanding why they are so absurdly flexible and useful, is our goal here. Further, I have always used high-level libraries such as [`GPy`](https://sheffieldml.github.io/GPy/) and [`GauPro`](https://cran.r-project.org/web/packages/GauPro/vignettes/GauPro.html) for GPs and wanted to build one manually in my beloved [`Stan`](https://mc-stan.org/docs/2_27/stan-users-guide/gaussian-processes-chapter.html).
+Welcome to the tutorial! In this short piece, we are going to explore the *absolute* fundamentals of [Gaussian processes](https://en.wikipedia.org/wiki/Gaussian_process) (GP) through an applied example. I was motivated to write this piece after recently finishing reading the seminal text in the field: [Gaussian processes for machine learning](http://www.gaussianprocess.org/gpml/). While an incredibly detailed resource, the treatment is extremely technical and layered with complex higher mathematics. Moral of the story: do not be misled by the word "Gaussian" into thinking GPs are simple. They are very complex and a deep understanding of them requires a rigorous handle on linear algebra and calculus. However, building an intuition for them and understanding why they are so absurdly flexible and useful is our goal here. For this tutorial, we are going to use a Python library called [`GPy`](https://sheffieldml.github.io/GPy/) which offers a simple and intuitive code design for beginners.
 
-*Caveat: GPs are very complex and many other excellent detailed guides are available. This article seeks to provide a very short introduction in the conversational style of usual Orbisant articles with available code.*
+*Caveat: GPs are very complex and many other excellent detailed guides are available. This article seeks to provide a very short introduction in the conversational style of usual Orbisant articles with easy-to-follow code.*
 
 ### Quick conceptual introduction to GPs
 
@@ -41,136 +41,85 @@ $$k_{SE}(x,x^{'}) = \sigma^{2} exp \left(-\frac{(x-x^{'})^{2}}{2l^{2}}\right)$$
 
 Here, the `l` parameter defines the lengthscale - how long the "wiggles" in your function are, while sigma-squared specifies the average distance away from the mean. As a final note, while it may be tempting to use any function under the sun as a covariance function in a GP, you cannot do this! There are a range of rules that these functions must follow (see [here](http://www.gaussianprocess.org/gpml/) for more).
 
+#### A comparison of different kernels
+
+There is an excellent graphic in the `GPy` [documentation](https://nbviewer.jupyter.org/github/SheffieldML/notebook/blob/master/GPy/basic_kernels.ipynb) that depicts some fundamental differences between a range of common kernels. Let's recreate it here and take a look.
+
+```{python}
+# Some plot edits
+
+import matplotlib; matplotlib.rcParams['figure.figsize'] = (8,5)
+from matplotlib import pyplot as plt
+
+# Draw matrix of plots
+
+figure, axes = plt.subplots(3, 3, figsize = (10,10), tight_layout = True)
+kerns = [GPy.kern.RBF(1), GPy.kern.Exponential(1), GPy.kern.Matern32(1), GPy.kern.Matern52(1), GPy.kern.Brownian(1), GPy.kern.Bias(1), GPy.kern.Linear(1), GPy.kern.PeriodicExponential(1), GPy.kern.White(1)]
+
+for k,a in zip(kerns, axes.flatten()):
+    k.plot(ax = a, x = 1)
+    a.set_title(k.name.replace('_', ' '))
+```
+
+Quite a lot of different shapes! You can begin to intuit when some might be more useful than others for certain applications. For example, on periodic or seasonal time series data, a periodic exponential kernel make might sense as a starting point. Moreover, you can even combine kernels! In the time series example, you might also want to model other components in the signal, and combining the period exponential with a RBF or linear might be a way to do this. At its core, Bayesian inference and GPs are all about flexibility - they exist to help you model the underlying statistical process that is likely to have generated your data. These tools just happen to let you weave in your subject matter expertise more explicitly as a prior.
+
 ### An applied example
 
 So much math! Let's put it into visuals and code to help make sense of what is going on.
 
-To start with, let's look at a dataset with only 5 (!!) points.
+To start with, let's look at an example with only 10 datapoints. Now many other models would not even fit to this data, let alone would most people consider modelling such limited *N* in the first place. But what if we wanted to get a basic understanding of some *potential* processes that might have generated this data? One (terrible) option would be to fit increasingly higher order polynomials, which would return very high fit statistics, but as we know, would generalise and extrapolate horrendously and ruin any chance at statistical inference. Another option (surprise, surprise) is to use a GP.
 
-```{r, warning = FALSE, message = FALSE, results = 'hide'}
-library(dplyr)
-library(magrittr)
-library(ggplot2)
+For this example, we are going to generate a set of 10 random numbers between -5 and +5 as our X variable, and then take the sine of those values to get our Y variable.
 
-tmp <- data.frame(x = seq(0, 4, 1)) %>%
-  mutate(y = sin(x))
+```{python}
+import random
+import numpy as np
+import GPy
 
-tmp %>%
-  ggplot(aes(x = x, y = y)) +
-  geom_point(size = 2.5)
+random.seed(123) # Fix seed for reproducibility
+X = np.random.uniform(-5., 5., (10, 1)) # Generate vector of X values
+Y = np.sin(X) # Generate vector of y values
 ```
 
-Now many other models would not even fit to this data, let alone would most people consider modelling such limited N in the first place. But what if we wanted to get a basic understanding of some *potential* processes that might have generated this data? One (terrible) option would be to fit increasingly higher order polynomials to this data, which would return very high fit statistics, but as we know, would generalise and extrapolate horrendously and ruin any chance at statistical inference. Another option (surprise, surprise) is to use a GP.
+We can then specify a very basic and uninformed GP using only two lines of code, followed by a third to automatically generate a plot with 95% credible intervals. Here we are just using the basic RBF kernel with all hyperparameters set to 1. Nothing too fancy.
 
-```{r, warning = FALSE, message = FALSE, results = 'hide'}
-# Specify model
-
-model <- "
-data {
-  int<lower=1> N1;
-  real x1[N1];
-  vector[N1] y1;
-  int<lower=1> N2;
-  real x2[N2];
-}
-
-transformed data {
-  real delta = 1e-9;
-  int<lower=1> N = N1 + N2;
-  real x[N];
-  for (n1 in 1:N1) x[n1] = x1[n1];
-  for (n2 in 1:N2) x[N1 + n2] = x2[n2];
-}
-
-parameters {
-  real<lower=0> rho;
-  real<lower=0> alpha;
-  real<lower=0> sigma;
-  vector[N] eta;
-}
-
-transformed parameters {
-  vector[N] f;
-  {
-    matrix[N, N] L_K;
-    matrix[N, N] K = cov_exp_quad(x, alpha, rho);
-
-    // diagonal elements
-    for (n in 1:N)
-      K[n, n] = K[n, n] + delta;
-
-    L_K = cholesky_decompose(K);
-    f = L_K * eta;
-  }
-}
-
-model {
-  rho ~ inv_gamma(5, 5);
-  alpha ~ std_normal();
-  sigma ~ std_normal();
-  eta ~ std_normal();
-
-  y1 ~ normal(f[1:N1], sigma);
-}
-
-generated quantities {
-  vector[N2] y2;
-  for (n2 in 1:N2)
-    y2[n2] = normal_rng(f[N1 + n2], sigma);
-}
-"
-
-# Set up data for Stan
-
-stan_data <- list(N1 = nrow(tmp),
-                  x1 = tmp$x,
-                  y1 = tmp$y,
-                  N2 = nrow(tmp),
-                  x2 = tmp$x)
-
-# Run model
-
-m1 <- stan(model_code = model,
-           data = stan_data, 
-           iter = 4000, 
-           chains = 3, 
-           control = list(max_treedepth = 15, 
-                          adapt_delta = 0.99),
-           seed = 123)
+```{python}
+kernel = GPy.kern.RBF(input_dim = 1, variance = 1., lengthscale = 1.) # Specify kernel
+m = GPy.models.GPRegression(X, Y, kernel) # Build the model
+fig = m.plot() # Plot model outputs
 ```
 
-Once the [MCMC](https://en.wikipedia.org/wiki/Markov_chain_Monte_Carlo) sampling is complete, we can then extract the posterior estimates from the model object and plot it.
+Not a bad start! Evidently we have produced some estimates that aren't too far away from what we might expect had we not explicitly known the data was generated from a sine wave. But can we do better? Let's increase the variance hyperparameter to something a bit drastic, like 5 and see what happens.
 
-```{r, warning = FALSE, message = FALSE, results = 'hide'}
-# Extract posterior
-
-posterior <- as.data.frame(m1) %>%
-  dplyr::select(c(24:28)) %>%
-  clean_names() %>%
-  mutate(iter = row_number()) %>%
-  pivot_longer(cols = 1:5, names_to = "x", values_to = "y") %>%
-  mutate(x = gsub(".*_", "\\1", x),
-         x = as.numeric(x),
-         x = x-1) %>%
-  group_by(x) %>%
-  summarise(median = median(y),
-            mean = mean(y),
-            lower = quantile(y, probs = 0.950),
-            upper = quantile(y, probs = 0.050)) %>%
-  ungroup()
-
-# Plot
-
-tmp %>%
-  ggplot() +
-  geom_ribbon(data = posterior, aes(x = x, ymin = lower, ymax = upper), alpha = 0.4, fill = "steelblue2") +
-  geom_line(data = posterior, aes(x = x, y = median), colour = "steelblue2") +
-  geom_point(aes(x = x, y = y), size = 2.5)
+```{python}
+kernel2 = GPy.kern.RBF(input_dim = 1, variance = 5., lengthscale = 1.)
+m2 = GPy.models.GPRegression(X, Y, kernel2)
+fig2 = m2.plot()
 ```
+
+Our mean and credible interval clearly follows the datapoints a little more closely now, and at the more extreme x values away from the datapoints in both directions, our credible interval widens to accommodate the fact that the model is less sure what estimates might be, due to the lack of data. Pretty neat.
+
+Now what if we keep these parameters but increase the lengthscale slightly, say to 2? Remembering that lengthscale affects the "wiggliness" of the kernel, we should expect a slightly *smoother* output here.
+
+```{python}
+kernel3 = GPy.kern.RBF(input_dim = 1, variance = 5., lengthscale = 2.)
+m3 = GPy.models.GPRegression(X, Y, kernel3)
+fig3 = m3.plot()
+```
+
+Just as we expected! At this point, we could probably take random draws from the model posterior and produce data that is somewhat representative of the ten datapoints we started with. This is useful in practice for applications such as simulation and sensitivity analysis. But something else we can do is optimise the models hyperparameters with respect to the data. This will produce a very tight fit to the data. The way this works is called [maximum likelihood](https://en.wikipedia.org/wiki/Maximum_likelihood_estimation), which seeks to optimise parameters in the likelihood function based on their ability to generate the observed data. In cases with a lot of data, this approach makes sense. However, in ours, with such little data, this approach will likely produce much too tight of a fit given such limited observations. Let's take a look.
+
+```{python}
+m4 = GPy.models.GPRegression(X, Y, kernel3)
+m4.optimize(messages = True)
+fig4 = m4.plot()
+```
+
+Definitely way too tight! Sure it looks appealing on this data, but how well might the model generalise to new data that's very far out on either side of the x-axis? Probably not very well. Apart from that, the tightness of the intervals does not really capture our inherent uncertainty 
 
 ### Additional thoughts
 
-While we considered only an extremely basic example here, I just wanted to flag the utility of GPs. GPs are so flexible that they can be used for both classification and regression, even time series, and can fit an almost unfathomably large number of real-world and synthetic datasets. However, as always in statistics, caution is advised when using GPs and it is strongly recommended that deep thought be used to specify the parameters of the model.
+While we considered only an extremely basic example here, I just wanted to reiterate the utility of GPs. GPs are so flexible that they can be used for both classification and regression, even time series, and can fit an almost unfathomably large number of real-world and synthetic datasets. However, as always in statistics, caution is advised when using GPs and it is strongly recommended that deep thought be used to specify the parameters of the model.
 
 ### Resources for further reading
 
