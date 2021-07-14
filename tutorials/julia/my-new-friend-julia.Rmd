@@ -1,0 +1,89 @@
+---
+title: "My new friend Julia"
+author: "Trent Henderson"
+date: 
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+[Julia](https://julialang.org) is a programming language that has been on my radar for quite some time, but whether it was my undying love for R or just a lack of time, I hadn't been able to properly sit down and explore it. However, a colleague in my [research lab](https://dynamicsandneuralsystems.github.io) at The University of Sydney, Brendan Harris, swears by it, and in the weeks before [JuliaCon 2021](https://juliacon.org/2021/), I found myself persuaded by his work to spend some time with it. I went in expecting to play around for an hour or two, and ended up spending three days straight fascinated by so many aspects of its design. What follows is some of my thoughts on Julia and the code that I first wrote in it to get started for you to follow along if you're interested. I'll absolutely be writing a follow-up piece to this as I continue my journey - I've already started working on things using dataframes and statistical modelling in Julia. In the meantime, I can't wait to attend JuliaCon in two weeks' time!
+
+### Julia's design
+
+Julia is a free and open source, [dynamically typed](https://docs.julialang.org/en/v1/manual/types/) language that feels very similar to scripting languages that many of us are intimately familiar with such as R and Python. However, Julia is fast. **Very fast.** Julia is Just-In-Time compiled, and this, combined with its excellent and deliberate design decisions, makes it extremely fast compared to other scripting languages. In addition to its speed, Julia has two other major benefits that initially got me interested in it:
+
+* [Unicode support](https://docs.julialang.org/en/v1/manual/unicode-input/) - Julia lets users type using straight unicode symbols, such as Greek alphabet letter that are typically used in mathematics and emojis that we all know and love. While this may seem trivial or laughable at first (especially the emojis part), this is actually an extremely enticing sell for those in the quantitative business. Julia bridges the gap between how we write equations in papers or textbooks and their software implementations. I'm not even kidding when I'm saying you can open a math textbook and type the equations into Julia using the exact symbology (as you'll see in my example later)
+* [Easy interfaces to other languages](https://github.com/JuliaStats/RDatasets.jl) - Packages such as the `RDatasets.jl` package make the datasets that we all start out with in other languages, such as R, available in Julia. This means we can focus the syntactical differences between languages when starting out, making reproducing results we are familiar with a comfortable and confidence-building first step.
+
+In addition, being open source software, Julia is rapidly expanding both its functionality and community, making it an ideal time to pick it up, get involved, and watch it skyrocket into prominence in academia and industry.
+
+### My first foray: animating differential equations
+
+Being an experienced programmer, my "hello world" of getting into new languages has definitely advanced from the days when I would try and add numbers or print nice messages to the console. And my first go at Julia is a pretty good indicator of this: I wanted to plot an animation of a solution to a [differential equation](https://en.wikipedia.org/wiki/Differential_equation)! Without going into too much detail, a differential equation describes the relationship between functions and their derivatives. In other words, it describes the relationship between the rates of change of these functions.
+
+One of the most famous examples of differential equations is the [Lotka-Volterra equations](https://en.wikipedia.org/wiki/Lotka–Volterra_equations), which have traditionally been used to show the relationship between numbers of predators and prey over time, as well as other competition and disease systems. Mathematically, the Lotka-Volterra model can be written as:
+
+$$\frac{dx}{dt} = \alpha x - \beta xy$$
+
+$$\frac{dy}{dt} = \delta xy - \gamma y$$
+
+Essentially, the solution to the system is trying to find values for the rate of change of predators and the rate of change of prey based on four different positive real parameters:
+
+* Alpha
+* Beta
+* Delta
+* Gamma
+
+I mentioned it earlier, but I'll bring it up here again with reference to the screenshot of code below. Julia's ability to use unicode characters as object names or values or whatever you choose really brings mathematical equations and their software implementation closer together. It's a lot less ambiguous to see the actual Greek characters that have been established for a long time compared to the text of `alpha`. Here's the code for making the Lotka-Volterra model in Julia (screenshotted so you can see the unicode hype):
+
+INSERT PICTURE HERE
+
+Note the familiar syntax to R and Python - first we load in packages we are going to use, and then we can make use of them. Installing packages (similar to R's one-off `install.packages()` function) in Julia can be done by:
+
+```{julia}
+using Pkg
+Pkg.add("insertpkgnamehere")
+```
+
+We can then make use of Julia's intuitive plotting functionality afforded by the excellent `DifferentialEquations.jl` package to plot the entire system over the time span we specified earlier:
+
+INSERT PLOT HERE
+
+Here is the code for that:
+
+```{julia}
+gr()
+
+odeOutput = plot(sol, title = "Basic Lotka-Volterra Model", 
+                 xlabel = "Time", ylabel = "Animal Numbers")
+
+display(odeOutput)
+```
+
+Very cool! As we solved a differential equation, we can also plot the [phase space](https://en.wikipedia.org/wiki/Phase_space_method) representation in a one-liner, thanks to the aforementioned fantastic `DifferentialEquations.jl` package functionality.
+
+INSERT PLOT HERE
+
+Here is the code for that:
+
+```{julia}
+phasespace = plot(sol, title = "Phase Diagram", vars = (1,2))
+display(phasespace)
+```
+
+Finally, we can produce the most appealing of all graphics - an animation - in one line of code, as the geniuses behind the `DifferentialEquations.jl` package knew from the get-go that people would want to do this, and thus have build direct support for it:
+
+INSERT PLOT HERE
+
+Here is the code for that (one line!):
+
+```{julia}
+animate(sol)
+```
+
+### Final thoughts
+
+There we have it! That was my first foray into Julia. It took such little time to get my head around the clean and intuitive syntax and produce interesting outputs, and I hope by sharing my experience that others might be motivated to give Julia a go. I'll certainly be pursuing my Julia journey with a lot of time and energy now!
