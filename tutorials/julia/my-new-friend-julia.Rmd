@@ -16,7 +16,8 @@ knitr::opts_chunk$set(echo = TRUE)
 Julia is a free and open source, [dynamically typed](https://docs.julialang.org/en/v1/manual/types/) language that feels very similar to scripting languages that many of us are intimately familiar with such as R and Python. However, Julia is fast. **Very fast.** Julia is Just-In-Time compiled, and this, combined with its excellent and deliberate design decisions, makes it extremely fast compared to other scripting languages. In addition to its speed, Julia has two other major benefits that initially got me interested in it:
 
 * [Unicode support](https://docs.julialang.org/en/v1/manual/unicode-input/) - Julia lets users type using straight unicode symbols, such as Greek alphabet letter that are typically used in mathematics and emojis that we all know and love. While this may seem trivial or laughable at first (especially the emojis part), this is actually an extremely enticing sell for those in the quantitative business. Julia bridges the gap between how we write equations in papers or textbooks and their software implementations. I'm not even kidding when I'm saying you can open a math textbook and type the equations into Julia using the exact symbology (as you'll see in my example later)
-* [Easy interfaces to other languages](https://github.com/JuliaStats/RDatasets.jl) - Packages such as the `RDatasets.jl` package make the datasets that we all start out with in other languages, such as R, available in Julia. This means we can focus the syntactical differences between languages when starting out, making reproducing results we are familiar with a comfortable and confidence-building first step.
+* [Easy interfaces to other languages](https://github.com/JuliaStats/RDatasets.jl) - Packages such as the `RDatasets.jl` package make the datasets that we all start out with in other languages, such as R, available in Julia. This means we can focus the syntactical differences between languages when starting out, making reproducing results we are familiar with a comfortable and confidence-building first step
+* Excellent community - Julia is a booming language with a vibrant, dynamic, and welcoming community. Getting involved with a language when it is reasonably young with a community such as this is an opportunity not to be missed
 
 In addition, being open source software, Julia is rapidly expanding both its functionality and community, making it an ideal time to pick it up, get involved, and watch it skyrocket into prominence in academia and industry.
 
@@ -84,6 +85,16 @@ Here is the code for that (one line!):
 animate(sol)
 ```
 
+### Bonus
+
+After plotting the Lotka-Volterra model, I got even more ambitious and wanted to plot the 3D [Rössler attractor](https://en.wikipedia.org/wiki/Rössler_attractor). You can see the plot and the code for it below. How cool! How simple!
+
+INSERT PLOT HERE
+
+INSERT PICTURE HERE
+
 ### Final thoughts
 
 There we have it! That was my first foray into Julia. It took such little time to get my head around the clean and intuitive syntax and produce interesting outputs, and I hope by sharing my experience that others might be motivated to give Julia a go. I'll certainly be pursuing my Julia journey with a lot of time and energy now!
+
+*Edit: I have since built some Bayesian models and low dimensional projection analyses in Julia. Posts coming on these soon!*
