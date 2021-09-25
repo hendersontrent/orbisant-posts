@@ -217,7 +217,7 @@ mod2 <- stan(data = stan_data2,
 xDat <- data.frame(x = x) %>%
   mutate(id = row_number())
 
-preds <- as.data.frame(mod2) %>%
+preds <- as.data.frame(readr::read_csv("/Users/trenthenderson/Downloads/preds.csv")) %>%
   dplyr::select(contains("y2")) %>%
   mutate(iteration = row_number()) %>%
   pivot_longer(cols = 1:20, names_to = "x_index", values_to = "values") %>%
@@ -235,13 +235,13 @@ preds <- as.data.frame(mod2) %>%
 
 data.frame(x, y) %>%
   ggplot() +
+  geom_ribbon(data = preds, aes(x = x, ymin = lower, ymax = upper), fill = "steelblue2", alpha = 0.4) +
   geom_point(aes(x = x, y = y), size = 3) +
-  geom_ribbon(data = preds, aes(x = x, ymin = lower, ymax = upper), fill = "steelblue2", alpha = 0.3) +
-  geom_line(data = preds, aes(x = x, y = median), colour = "steelblue2", size = 1) +
-  labs(title = "Predictions from latent Gaussian process model",
+  geom_line(data = preds, aes(x = x, y = median), colour = "steelblue2", size = 0.9) +
+  labs(title = "Predictions from latent Gaussian process model with Poisson likelihood",
        subtitle = "Ribbon indicates 90% credible interval. Line indicates posterior median.",
        x = "X",
        y = "Y") +
-  scale_y_continuous(limits = c(0, 12),
-                     breaks = seq(from = 0, to = 12, by = 2)) +
+  scale_y_continuous(limits = c(0, 18),
+                     breaks = seq(from = 0, to = 18, by = 2)) +
   theme(panel.grid.minor.y = element_blank())
