@@ -18,6 +18,7 @@ if(!dir.exists('tutorials/gp')) dir.create('tutorials/gp')
 if(!dir.exists('tutorials/gp/output')) dir.create('tutorials/gp/output')
 if(!dir.exists('tutorials/julia')) dir.create('tutorials/julia')
 if(!dir.exists('tutorials/julia/output')) dir.create('tutorials/julia/output')
+if(!dir.exists('time-series')) dir.create('time-series')
 
 # hctsa
 
