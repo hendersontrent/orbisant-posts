@@ -121,12 +121,18 @@ y <- rpois(n, exp(f))
 
 # Plot it
 
-data.frame(x, y) %>%
+p <- data.frame(x, y) %>%
   ggplot(aes(x = x, y = y)) +
-  geom_point(size = 3) +
+  geom_point(size = 2.5) +
   scale_y_continuous(limits = c(0, 12),
                      breaks = seq(from = 0, to = 12, by = 2)) +
+  labs(title = "Some simulated count data") +
+  theme_bw() +
   theme(panel.grid.minor.y = element_blank())
+
+print(p)
+
+ggsave('tutorials/gp/output/rpois.png', p)
 
 # Specify model
 
@@ -233,15 +239,40 @@ preds <- as.data.frame(readr::read_csv("/Users/trenthenderson/Downloads/preds.cs
 
 # Plot our model predictions
 
-data.frame(x, y) %>%
+p2 <- data.frame(x, y) %>%
   ggplot() +
-  geom_ribbon(data = preds, aes(x = x, ymin = lower, ymax = upper), fill = "steelblue2", alpha = 0.4) +
-  geom_point(aes(x = x, y = y), size = 3) +
-  geom_line(data = preds, aes(x = x, y = median), colour = "steelblue2", size = 0.9) +
+  geom_ribbon(data = preds, aes(x = x, ymin = lower, ymax = upper), fill = "grey90") +
+  geom_point(aes(x = x, y = y), size = 2.5) +
+  geom_line(data = preds, aes(x = x, y = median), colour = "black", size = 0.75) +
   labs(title = "Predictions from latent Gaussian process model with Poisson likelihood",
-       subtitle = "Ribbon indicates 90% credible interval. Line indicates posterior median.",
+       subtitle = "Ribbon indicates 90% posterior prediction interval. Line indicates posterior predictive median.",
        x = "X",
        y = "Y") +
   scale_y_continuous(limits = c(0, 18),
                      breaks = seq(from = 0, to = 18, by = 2)) +
+  theme_bw() +
   theme(panel.grid.minor.y = element_blank())
+
+print(p2)
+
+ggsave('tutorials/gp/output/poisson-gp.png', p2)
+
+# Posterior distributions
+
+p3 <- as.data.frame(readr::read_csv("/Users/trenthenderson/Downloads/preds.csv")) %>%
+  dplyr::select(c(rho, alpha, a)) %>%
+  mutate(iteration = row_number()) %>%
+  pivot_longer(cols = 1:3, names_to = "parameter", values_to = "values") %>%
+  ggplot(aes(x = values)) +
+  geom_density(fill = "grey90", colour = "grey90") +
+  labs(title = "Parameter posterior distributions",
+       x = "Value",
+       y = "Posterior density") +
+  theme_bw() +
+  theme(strip.background = element_blank(),
+        strip.text = element_text(face = "bold", size = 10)) +
+  facet_wrap(~parameter, scales = "free", dir = "v")
+
+print(p3)
+
+ggsave('tutorials/gp/output/params.png', p3)
